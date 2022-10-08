@@ -76,9 +76,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
 static void initialise_wifi(void)
 {
-    ESP_ERROR_CHECK(esp_netif_init());
     s_wifi_event_group = xEventGroupCreate();
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
     assert(sta_netif);
 
@@ -121,18 +119,19 @@ static void smartconfig_example_task(void *parm)
 /*---http---*/
 static void http_get_task(void *pvParameters)
 {
-    if (http_status == HTTP_ACCESS)
-    {
-        const struct addrinfo hints = {
-            .ai_family = AF_INET,
-            .ai_socktype = SOCK_STREAM,
-        };
-        struct addrinfo *res;
-        struct in_addr *addr;
-        int s, r;
-        char recv_buf[64];
 
-        while (1)
+    const struct addrinfo hints = {
+        .ai_family = AF_INET,
+        .ai_socktype = SOCK_STREAM,
+    };
+    struct addrinfo *res;
+    struct in_addr *addr;
+    int s, r;
+    char recv_buf[64];
+
+    while (1)
+    {
+        if (http_status == HTTP_ACCESS)
         {
             int err = getaddrinfo(WEB_SERVER, WEB_PORT, &hints, &res);
 
@@ -170,7 +169,12 @@ static void http_get_task(void *pvParameters)
 
             ESP_LOGI(HTTP, "... connected");
             freeaddrinfo(res);
+            /*--create string request---*/
 
+            sprintf(SUBREQUEST, "api_key=MOQ3SYV4PNJVSLVW&field1=%d&field2=%d", temp, humi);
+            sprintf(REQUEST, "POST /update HTTP/1.1\nHost: api.thingspeak.com\nConnection: close\nConnect-Type: application/x-www-form-urlencoded\nContent-Length:%d\n\n%s\n", strlen(SUBREQUEST), SUBREQUEST);
+
+            /*---sent request---*/
             if (write(s, REQUEST, strlen(REQUEST)) < 0)
             {
                 ESP_LOGE(HTTP, "... socket send failed");
@@ -211,7 +215,8 @@ static void http_get_task(void *pvParameters)
                 ESP_LOGI(HTTP, "%d... ", countdown);
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
             }
-            ESP_LOGI(HTTP, "Starting again!");
+            ESP_LOGI(HTTP, "HTTP END!");
+            http_status = HTTP_WAIT;
         }
     }
 }
@@ -221,20 +226,35 @@ static void http_get_task(void *pvParameters)
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    /*---code here---*/
+
     smartconfig_status = WIFI_STATUS_SET;
     http_status = HTTP_WAIT;
     initialise_wifi();
+    output_io_creat(LED);
     while (1)
     {
         if (smartconfig_status == WIFI_CONNECTED)
         {
-            // xTaskCreate(&http_get_task, "http_get_task", 4096, NULL, 5, NULL);
+            xTaskCreate(&http_get_task, "http_get_task", 4096, NULL, 5, NULL);
+            gpio_set_level(LED, 1);
             break;
         }
     }
+
+    http_status = HTTP_ACCESS;
     while (1)
     {
-        ESP_LOGI(WIFI, "do something");
-        delay_s(10);
+        if (http_status == HTTP_WAIT)
+        {
+            temp++;
+            humi++;
+            ESP_LOGI(HTTP, "waitting 10s....");
+            delay_s(10);
+            http_status = HTTP_ACCESS;
+        }
     }
 }

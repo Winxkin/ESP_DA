@@ -28,6 +28,7 @@
 
 /*my libbrary*/
 #include "delay.h"
+#include "gpioconfig.h"
 
 /*smart config*/
 #define WIFI_CONNECTED 1
@@ -43,18 +44,23 @@ static const char *WIFI = "smartconfig wifi";
 
 /*http*/
 /* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "example.com"
+#define WEB_SERVER "api.thingspeak.com"
 #define WEB_PORT "80"
 #define WEB_PATH "/"
+#define API_KEY "MOQ3SYV4PNJVSLVW"
+
 #define HTTP_ACCESS 1
 #define HTTP_WAIT 0
 
 static int http_status;
 
-static const char *HTTP = "example";
+static const char *HTTP = "HTTP";
 
-static const char *REQUEST = "GET " WEB_PATH " HTTP/1.0\r\n"
-                             "Host: " WEB_SERVER ":" WEB_PORT "\r\n"
-                             "User-Agent: esp-idf/1.0 esp32\r\n"
-                             "\r\n";
+char REQUEST[512];
+char SUBREQUEST[100];
+uint8_t temp, humi;
+
+/*LED*/
+#define LED 0
+
 #endif
